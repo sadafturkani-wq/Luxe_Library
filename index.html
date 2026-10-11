@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luxe Library — A Private Digital Library</title>
+  <meta name="description" content="Luxe Library — a quiet, immersive digital reading experience. Discover a curated collection of extraordinary books, collect your favourites, and keep time for reading.">
+  <meta name="theme-color" content="#111110">
+
+  <!-- Typography: Cormorant Garamond (display serif) + Inter (text sans) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+
+  <!--
+    Runs before first paint for two reasons:
+    1. Apply the saved theme (localStorage, else system preference) before the
+       page renders, so users never see a flash of the wrong theme.
+    2. Add the "js" class: the loading screen is only shown when JS is available,
+       and a 2.6s failsafe guarantees it can never trap users if the main script
+       fails to load.
+  -->
+  <script>
+    (function () {
+      var root = document.documentElement;
+      root.classList.add('js');
+      var theme = null;
+      try { theme = localStorage.getItem('luxe:theme'); } catch (e) { /* private mode */ }
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      }
+      root.setAttribute('data-theme', theme);
+      setTimeout(function () { root.classList.add('loader-done'); }, 2600);
+    })();
+  </script>
+</head>
+
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- ============ CINEMATIC LOADER ============ -->
+  <div class="loader" id="loader" aria-hidden="true">
+    <div class="loader-inner">
+      <p class="loader-wordmark"><span class="serif-i">Luxe</span> <span class="caps">Library</span></p>
+      <span class="loader-line" aria-hidden="true"></span>
+      <p class="loader-caption">A private digital library</p>
+    </div>
+  </div>
+
+  <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+  <!-- ============ NAVIGATION ============ -->
+  <header class="nav" id="siteNav">
+    <div class="nav-inner container-wide">
+
+      <a href="#home" class="wordmark" data-scroll aria-label="Luxe Library — back to top">
+        <span class="serif-i">Luxe</span><span class="wordmark-dot" aria-hidden="true"></span><span class="caps">Library</span>
+      </a>
+
+      <nav class="nav-links" id="navLinks" aria-label="Primary">
+        <ul>
+          <li><a href="#discover" data-scroll>Discover</a></li>
+          <li><a href="#collections" data-scroll>Collections</a></li>
+          <li><a href="#authors" data-scroll>Authors</a></li>
+          <li><a href="#reading-room" data-scroll>Reading&nbsp;Room</a></li>
+          <li><a href="#my-library" data-scroll>My&nbsp;Library</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="icon-btn" id="searchToggle" type="button" aria-expanded="false" aria-controls="searchPanel" aria-label="Open search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+        </button>
+
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Switch to light theme" aria-pressed="false">
+          <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"/></svg>
+        </button>
+
+        <a class="icon-btn icon-link" href="#my-library" data-scroll id="favButton" aria-label="Favourites — open My Library">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 6.6a5.5 5.5 0 0 0-7.8 0L12 7.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+          <span class="badge" id="favCount" aria-hidden="true">0</span>
+          <span class="visually-hidden" id="favCountLabel">0 favourites saved</span>
+        </a>
+
+        <a class="icon-btn icon-link" href="#my-library" data-scroll id="bagButton" aria-label="Reading bag — open My Library">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>
+          <span class="badge" id="bagCount" aria-hidden="true">0</span>
+          <span class="visually-hidden" id="bagCountLabel">0 books in your library</span>
+        </a>
+
+        <button class="icon-btn nav-burger" id="menuToggle" type="button" aria-expanded="false" aria-controls="mobileMenu" aria-label="Open menu">
+          <span></span><span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Expanding search panel -->
+    <div class="search-panel" id="searchPanel" role="search">
+      <div class="search-panel-inner container-wide">
+        <svg class="search-panel-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+        <label class="visually-hidden" for="searchInput">Search books by title, author or category</label>
+        <input type="search" id="searchInput" placeholder="Search by title, author, or category&hellip;" autocomplete="off">
+        <p class="search-hint">Press <kbd>Enter</kbd> to view results &middot; <kbd>Esc</kbd> to close</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Full-screen editorial mobile menu -->
+  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+    <nav aria-label="Mobile">
+      <ul>
+        <li style="--i:0"><a href="#discover" data-scroll><span class="mm-num">01</span>Discover</a></li>
+        <li style="--i:1"><a href="#collections" data-scroll><span class="mm-num">02</span>Collections</a></li>
+        <li style="--i:2"><a href="#authors" data-scroll><span class="mm-num">03</span>Authors</a></li>
+        <li style="--i:3"><a href="#reading-room" data-scroll><span class="mm-num">04</span>Reading Room</a></li>
+        <li style="--i:4"><a href="#my-library" data-scroll><span class="mm-num">05</span>My Library</a></li>
+      </ul>
+    </nav>
+    <p class="mobile-menu-foot">Luxe Library &mdash; some worlds are meant to be discovered.</p>
+  </div>
+
+  <main id="main">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero" id="home" aria-labelledby="heroTitle">
+      <div class="container hero-grid">
+
+        <div class="hero-copy">
+          <p class="kicker reveal">A private digital library &mdash; est. MMXXVI</p>
+          <h1 id="heroTitle" class="hero-title">
+            <span class="ht-line reveal" style="--d:1">Some Worlds Are</span>
+            <span class="ht-line reveal" style="--d:2">Meant to Be</span>
+            <span class="ht-line ht-accent reveal" style="--d:3"><em>Discovered.</em></span>
+          </h1>
+          <p class="hero-lead reveal" style="--d:4">Enter a quieter world of extraordinary stories, timeless ideas, and books worth returning to.</p>
+
+          <div class="hero-cta reveal" style="--d:5">
+            <a class="btn btn-gold-fill" href="#discover" data-scroll>Explore the Collection</a>
+            <a class="link-arrow" href="#reading-room" data-scroll>Enter the Reading Room <span class="arrow" aria-hidden="true">&rarr;</span></a>
+          </div>
+
+          <p class="hero-meta reveal" style="--d:6"><span class="gold-dot" aria-hidden="true"></span> 18 volumes &middot; eight disciplines &middot; open every hour of the night</p>
+        </div>
+
+        <div class="hero-visual reveal" style="--d:3" aria-label="Featured books from the collection">
+          <div class="hero-glow" aria-hidden="true"></div>
+          <svg class="hero-ring" viewBox="0 0 400 400" aria-hidden="true">
+            <circle cx="200" cy="200" r="188"/>
+            <circle cx="200" cy="200" r="120" stroke-dasharray="3 10"/>
+          </svg>
+          <div class="hero-stack" id="heroStack">
+            <button class="hero-book hb-back" type="button" data-book-id="the-vermilion-letter" aria-label="The Vermilion Letter, by Margaux Delacroix — view details"></button>
+            <button class="hero-book hb-main" type="button" data-book-id="the-cartographers-daughter" aria-label="The Cartographer's Daughter, by Niall Byrne — view details"></button>
+            <button class="hero-book hb-front" type="button" data-book-id="what-the-stars-remember" aria-label="What the Stars Remember, by Camille Aubert — view details"></button>
+          </div>
+          <p class="hero-caption" id="heroCaption">Featured volume &mdash; <em>The Cartographer&rsquo;s Daughter</em></p>
+          <span class="sparkle s1" aria-hidden="true"></span>
+          <span class="sparkle s2" aria-hidden="true"></span>
+          <span class="sparkle s3" aria-hidden="true"></span>
+        </div>
+
+      </div>
+
+      <div class="scroll-cue" aria-hidden="true"><span>Scroll</span><i></i></div>
+    </section>
+
+    <!-- ============ 01 — DISCOVER ============ -->
+    <section class="section discover" id="discover" aria-labelledby="discoverTitle">
+      <div class="container">
+
+        <header class="section-head">
+          <div>
+            <p class="kicker reveal">01 &mdash; The Catalogue</p>
+            <h2 id="discoverTitle" class="section-title reveal">Discover the Collection</h2>
+          </div>
+          <p class="section-lede reveal">A small, deliberately chosen shelf. Filter it, search it, sort it &mdash; then make some of it yours.</p>
+        </header>
+
+        <div class="catalogue-toolbar reveal">
+          <div class="chips" id="chips" role="group" aria-label="Filter books by category">
+            <button class="chip" type="button" data-filter="all" aria-pressed="true">All</button>
+            <button class="chip" type="button" data-filter="Fiction" aria-pressed="false">Fiction</button>
+            <button class="chip" type="button" data-filter="Philosophy" aria-pressed="false">Philosophy</button>
+            <button class="chip" type="button" data-filter="Psychology" aria-pressed="false">Psychology</button>
+            <button class="chip" type="button" data-filter="History" aria-pressed="false">History</button>
+            <button class="chip" type="button" data-filter="Poetry" aria-pressed="false">Poetry</button>
+            <button class="chip" type="button" data-filter="Science" aria-pressed="false">Science</button>
+            <button class="chip" type="button" data-filter="Mystery" aria-pressed="false">Mystery</button>
+            <button class="chip" type="button" data-filter="Personal Growth" aria-pressed="false">Personal&nbsp;Growth</button>
+          </div>
+
+          <div class="toolbar-right">
+            <div class="active-tokens" id="activeTokens" aria-live="polite"></div>
+            <label class="select-wrap">
+              <span class="visually-hidden">Sort books</span>
+              <select id="sortSelect">
+                <option value="curated">Curated order</option>
+                <option value="title">Title A&ndash;Z</option>
+                <option value="author">Author A&ndash;Z</option>
+                <option value="duration-desc">Longest read first</option>
+                <option value="duration-asc">Shortest read first</option>
+              </select>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </label>
+          </div>
+        </div>
+
+        <p class="results-info" id="resultsInfo" aria-live="polite">Showing 18 of 18 volumes</p>
+
+        <div class="book-grid" id="bookGrid"></div>
+
+        <div class="empty-state" id="emptyState" hidden>
+          <svg class="empty-orn" viewBox="0 0 120 120" aria-hidden="true"><path d="M60 8l10 42 42 10-42 10-10 42-10-42L8 60l42-10z"/></svg>
+          <h3>Nothing on this shelf &mdash; yet.</h3>
+          <p>No volumes match that search. Try another title, or reset the catalogue.</p>
+          <button class="btn btn-ghost" id="resetFilters" type="button">Reset the Catalogue</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ 02 — CURATED COLLECTIONS ============ -->
+    <section class="section collections" id="collections" aria-labelledby="collectionsTitle">
+      <div class="container">
+
+        <header class="section-head">
+          <div>
+            <p class="kicker reveal">02 &mdash; Curated Collections</p>
+            <h2 id="collectionsTitle" class="section-title reveal">Three Rooms, Three Temperaments</h2>
+          </div>
+          <p class="section-lede reveal">Every collection is a mood before it is a list. Choose a room; the catalogue will rearrange itself around it.</p>
+        </header>
+
+        <div class="collections-grid">
+
+          <!-- A. The Classics Room -->
+          <article class="col-panel col-classics reveal" data-collection="classics" tabindex="0" role="button"
+                   aria-label="The Classics Room — timeless works that shaped generations. View these books.">
+            <div class="col-media">
+              <img src="https://images.unsplash.com/photo-1507842217343-583bb4270b66?auto=format&fit=crop&w=1200&q=80" alt="" loading="lazy" data-fallback>
+            </div>
+            <span class="col-num" aria-hidden="true">No. I</span>
+            <div class="col-content">
+              <p class="col-tag">The Classics Room</p>
+              <h3>Timeless works that shaped generations.</h3>
+              <p class="col-count">4 volumes &mdash; Austen, Dostoevsky, Shelley, Aurelius</p>
+              <span class="col-cta">Browse the room <span class="col-arrow" aria-hidden="true">&rarr;</span></span>
+            </div>
+            <span class="col-frame" aria-hidden="true"></span>
+          </article>
+
+          <!-- C. Midnight Mysteries -->
+          <article class="col-panel col-midnight reveal" data-collection="midnight" tabindex="0" role="button"
+                   aria-label="Midnight Mysteries — dark secrets and stories that keep you turning pages. View these books.">
+            <div class="col-media">
+              <img src="https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=1000&q=80" alt="" loading="lazy" data-fallback>
+            </div>
+            <svg class="col-moon" viewBox="0 0 100 100" aria-hidden="true"><path d="M62 8a34 34 0 1 0 26 56A42 42 0 0 1 62 8z"/></svg>
+            <span class="col-num" aria-hidden="true">No. III</span>
+            <div class="col-content">
+              <p class="col-tag">Midnight Mysteries</p>
+              <h3>Dark secrets, unforgettable characters, stories that keep you turning pages.</h3>
+              <p class="col-count">3 volumes &mdash; for long winter nights</p>
+              <span class="col-cta">Enter after dark <span class="col-arrow" aria-hidden="true">&rarr;</span></span>
+            </div>
+            <span class="col-frame" aria-hidden="true"></span>
+          </article>
+
+          <!-- B. The Quiet Mind -->
+          <article class="col-panel col-quiet reveal" data-collection="quiet" tabindex="0" role="button"
+                   aria-label="The Quiet Mind — books for reflection, clarity, and deeper thinking. View these books.">
+            <svg class="col-circles" viewBox="0 0 600 300" aria-hidden="true">
+              <circle cx="430" cy="150" r="60"/><circle cx="430" cy="150" r="100"/><circle cx="430" cy="150" r="140"/>
+            </svg>
+            <span class="col-num" aria-hidden="true">No. II</span>
+            <div class="col-content">
+              <p class="col-tag">The Quiet Mind</p>
+              <h3>Books for reflection, clarity, and deeper thinking.</h3>
+              <p class="col-count">7 volumes &mdash; philosophy, psychology, poetry</p>
+              <span class="col-cta">Slow down here <span class="col-arrow" aria-hidden="true">&rarr;</span></span>
+            </div>
+            <span class="col-frame" aria-hidden="true"></span>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 — AUTHOR SPOTLIGHT ============ -->
+    <section class="section authors" id="authors" aria-labelledby="authorsTitle">
+      <div class="container">
+
+        <header class="section-head">
+          <div>
+            <p class="kicker reveal">03 &mdash; The Authors</p>
+            <h2 id="authorsTitle" class="section-title reveal">Voices Worth Returning To</h2>
+          </div>
+          <p class="section-lede reveal">Three classics of the public domain, presented with their histories kept honest. Their works live on our shelves.</p>
+        </header>
+
+        <div class="author-grid" id="authorGrid"></div>
+
+        <p class="authors-note reveal">Biographies reflect the historical record. All featured works are in the public domain.</p>
+      </div>
+    </section>
+
+    <!-- ============ 04 — THE READING ROOM ============ -->
+    <section class="section reading-room" id="reading-room" aria-labelledby="readingTitle">
+      <div class="container">
+
+        <header class="section-head">
+          <div>
+            <p class="kicker reveal">04 &mdash; The Reading Room</p>
+            <h2 id="readingTitle" class="section-title reveal">A Room for One Hour of Quiet</h2>
+          </div>
+          <p class="section-lede reveal">Set the clock, silence the rest of the page, and keep a small promise to yourself.</p>
+        </header>
+
+        <div class="room-grid">
+
+          <div class="room-left">
+            <blockquote class="room-quote reveal">
+              <span class="quote-mark" aria-hidden="true">&ldquo;</span>
+              <p>I have always imagined that Paradise will be a kind of library.</p>
+              <footer>&mdash; Jorge Luis Borges, <cite>Poem of the Gifts</cite> (1960)</footer>
+            </blockquote>
+
+            <div class="prompt-card reveal">
+              <p class="prompt-label">Today&rsquo;s reading prompt</p>
+              <p class="prompt-text" id="promptText">&ldquo;Begin the week with a book you have been postponing all year.&rdquo;</p>
+              <p class="prompt-date" id="promptDate"></p>
+            </div>
+          </div>
+
+          <div class="timer-card reveal" id="timerCard">
+            <div class="timer-head">
+              <p class="timer-title">The Reading Clock</p>
+              <button class="btn btn-ghost btn-small" id="focusToggle" type="button" aria-pressed="false">
+                Focus mode
+              </button>
+            </div>
+
+            <div class="timer-ring-wrap">
+              <svg class="timer-ring" viewBox="0 0 240 240" role="img" aria-labelledby="timerAria">
+                <title id="timerAria">Reading timer progress ring</title>
+                <circle class="ring-track" cx="120" cy="120" r="104"/>
+                <circle class="ring-fg" id="ringFg" cx="120" cy="120" r="104"/>
+              </svg>
+              <div class="timer-readout">
+                <p class="timer-display" id="timerDisplay">20:00</p>
+                <p class="timer-state" id="timerState">Ready when you are</p>
+              </div>
+            </div>
+
+            <div class="timer-controls">
+              <label class="select-wrap">
+                <span class="visually-hidden" id="durationLabel">Reading duration</span>
+                <select id="durationSelect" aria-labelledby="durationLabel">
+                  <option value="10">10 minutes</option>
+                  <option value="20" selected>20 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="45">45 minutes</option>
+                  <option value="60">60 minutes</option>
+                </select>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </label>
+              <div class="timer-buttons">
+                <button class="btn btn-gold-fill" id="timerStart" type="button">
+                  <span class="ts-label">Begin Reading</span>
+                </button>
+                <button class="btn btn-ghost" id="timerReset" type="button">Reset</button>
+              </div>
+            </div>
+
+            <div class="goal-block">
+              <p class="goal-label"><span id="todayMinutes">0</span> of 20 quiet minutes today</p>
+              <div class="goal-bar" role="progressbar" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0" id="goalBar" aria-label="Daily reading goal progress">
+                <span id="goalFill"></span>
+              </div>
+              <p class="goal-note" id="sessionNote">Completed sessions are kept on this device only.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 05 — MY LIBRARY ============ -->
+    <section class="section my-library" id="my-library" aria-labelledby="libraryTitle">
+      <div class="container">
+
+        <header class="section-head">
+          <div>
+            <p class="kicker reveal">05 &mdash; Your Library</p>
+            <h2 id="libraryTitle" class="section-title reveal">The Books You Have Chosen</h2>
+          </div>
+          <p class="section-lede reveal">Saved volumes, favourites, and the quiet hours you have kept &mdash; gathered in one place.</p>
+        </header>
+
+        <div class="library-stats reveal" id="libraryStats">
+          <div class="stat"><p class="stat-num" id="statSaved">0</p><p class="stat-label">Saved volumes</p></div>
+          <div class="stat"><p class="stat-num" id="statFav">0</p><p class="stat-label">Favourites</p></div>
+          <div class="stat"><p class="stat-num" id="statMinutes">0</p><p class="stat-label">Minutes this week</p></div>
+        </div>
+
+        <div class="library-note reveal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6z"/></svg>
+          <p>Your library lives in this browser only. Luxe Library stores your shelf, favourites and reading sessions in <code>localStorage</code> on this device &mdash; nothing is uploaded, and nothing appears on your other devices.</p>
+        </div>
+
+        <div class="library-tabs reveal" role="tablist" aria-label="Library shelves">
+          <button class="lib-tab" id="tab-saved" role="tab" aria-selected="true" aria-controls="libraryPanel" data-tab="saved" type="button">Saved</button>
+          <button class="lib-tab" role="tab" aria-selected="false" aria-controls="libraryPanel" data-tab="favorites" type="button">Favourites</button>
+          <button class="lib-tab" role="tab" aria-selected="false" aria-controls="libraryPanel" data-tab="reading" type="button">Currently Reading</button>
+          <button class="lib-tab" role="tab" aria-selected="false" aria-controls="libraryPanel" data-tab="completed" type="button">Completed</button>
+          <button class="lib-tab" role="tab" aria-selected="false" aria-controls="libraryPanel" data-tab="history" type="button">Sessions</button>
+        </div>
+
+        <div class="library-panel reveal" id="libraryPanel" role="tabpanel"></div>
+
+        <div class="library-danger reveal" id="libraryDanger" hidden>
+          <button class="btn btn-ghost" id="clearCompleted" type="button">Clear Completed Books</button>
+          <button class="btn btn-ghost" id="clearHistory" type="button">Clear Session History</button>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer">
+    <div class="container">
+
+      <div class="footer-brand">
+        <p class="footer-wordmark"><span class="serif-i">Luxe</span> <span class="caps">Library</span></p>
+        <p class="footer-statement">A quiet corner of the internet devoted to the slow, deliberate pleasure of reading. Curated shelves, a warm lamp, and no algorithm telling you what to love next.</p>
+      </div>
+
+      <div class="footer-grid">
+        <nav class="footer-col" aria-label="Footer — navigate">
+          <p class="footer-heading">Navigate</p>
+          <ul>
+            <li><a href="#discover" data-scroll>Discover</a></li>
+            <li><a href="#collections" data-scroll>Collections</a></li>
+            <li><a href="#authors" data-scroll>Authors</a></li>
+            <li><a href="#reading-room" data-scroll>Reading Room</a></li>
+            <li><a href="#my-library" data-scroll>My Library</a></li>
+          </ul>
+        </nav>
+
+        <nav class="footer-col" aria-label="Footer — collections">
+          <p class="footer-heading">Collections</p>
+          <ul>
+            <li><a href="#collections" data-collection-link="classics">The Classics Room</a></li>
+            <li><a href="#collections" data-collection-link="quiet">The Quiet Mind</a></li>
+            <li><a href="#collections" data-collection-link="midnight">Midnight Mysteries</a></li>
+          </ul>
+        </nav>
+
+        <div class="footer-col footer-letters">
+          <p class="footer-heading">The Letters</p>
+          <p class="footer-letter-copy">One considered letter a month. New rooms, quiet essays, no noise.</p>
+          <form class="newsletter" id="newsletterForm" novalidate>
+            <label class="visually-hidden" for="newsletterEmail">Email address</label>
+            <input type="email" id="newsletterEmail" name="email" placeholder="your@address.com" autocomplete="email" required>
+            <button class="btn btn-ghost btn-small" type="submit">Subscribe</button>
+          </form>
+          <p class="newsletter-msg" id="newsletterMsg" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="footer-col footer-follow">
+          <p class="footer-heading">Follow</p>
+          <div class="social-row">
+            <a href="#" class="social" aria-label="Instagram (placeholder)" title="Instagram (placeholder)"><span class="serif-i">Ig</span></a>
+            <a href="#" class="social" aria-label="Pinterest (placeholder)" title="Pinterest (placeholder)"><span class="serif-i">P</span></a>
+            <a href="#" class="social" aria-label="X (placeholder)" title="X (placeholder)"><span class="serif-i">X</span></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>&copy; <span id="year">2026</span> Luxe Library. All titles belong to their authors.</p>
+        <p>Built with nothing but HTML, CSS &amp; JavaScript &mdash; and a fondness for margins.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ MODALS ============ -->
+  <div class="modal" id="bookModal" role="dialog" aria-modal="true" aria-labelledby="bookModalTitle" hidden>
+    <div class="modal-card book-modal-card" id="bookModalBody"></div>
+  </div>
+
+  <div class="modal" id="authorModal" role="dialog" aria-modal="true" aria-labelledby="authorModalTitle" hidden>
+    <div class="modal-card author-modal-card" id="authorModalBody"></div>
+  </div>
+
+  <div class="modal" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+    <div class="modal-card confirm-card">
+      <h3 id="confirmTitle">Are you sure?</h3>
+      <p id="confirmText"></p>
+      <div class="confirm-actions">
+        <button class="btn btn-gold-fill" id="confirmOk" type="button">Yes, clear them</button>
+        <button class="btn btn-ghost" id="confirmCancel" type="button">Keep them</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications (aria-live announced) -->
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <button class="back-to-top" id="backToTop" type="button" aria-label="Back to top" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+  </button>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
